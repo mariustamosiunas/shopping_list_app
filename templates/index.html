@@ -75,11 +75,45 @@
 
         .category-filter {
             min-width: 180px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 5px;
         }
 
         .category-filter select {
             background: white;
             cursor: pointer;
+            flex: 1;
+        }
+
+        .clear-filter-btn {
+            display: none;
+            position: absolute;
+            right: 10px;
+            background: #999;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 1;
+            padding: 0;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+            z-index: 10;
+            pointer-events: all;
+        }
+
+        .clear-filter-btn:hover {
+            background: #667eea;
+        }
+
+        .clear-filter-btn.active {
+            display: flex;
         }
 
         .no-results-message {
@@ -139,24 +173,20 @@
         .item.selected {
             background: #e7f3ff;
             border-left: 4px solid #667eea;
-            padding-bottom: 50px;
         }
 
         @media (max-width: 600px) {
+            .item {
+                padding: 10px 8px;
+                gap: 8px;
+            }
+
             .item.selected {
-                flex-wrap: wrap;
+                padding: 10px 8px;
             }
             
             .quantity-controls {
-                position: absolute;
-                bottom: 8px;
-                right: 12px;
-                left: 12px;
-                justify-content: flex-end;
-                background: white;
-                padding: 8px;
-                border-radius: 8px;
-                box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
+                margin-left: auto;
             }
 
             .search-filter-box {
@@ -177,29 +207,16 @@
 
         .item-info {
             flex: 1;
+            min-width: 0;
         }
 
         .item-name {
             font-weight: 600;
             font-size: 1rem;
             color: #333;
-        }
-
-        .item-category {
-            font-size: 0.85rem;
-            color: #666;
-            margin-top: 3px;
-        }
-
-        .category-badge {
-            background: #667eea;
-            color: white;
-            padding: 3px 10px;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .quantity-controls {
@@ -452,6 +469,7 @@
                     <select id="categoryFilter">
                         <option value="">All Categories</option>
                     </select>
+                    <button class="clear-filter-btn" id="clearFilterBtn" title="Clear filter">×</button>
                 </div>
             </div>
 
@@ -535,7 +553,8 @@
 
         function setupEventListeners() {
             document.getElementById('searchInput').addEventListener('input', filterItems);
-            document.getElementById('categoryFilter').addEventListener('change', filterItems);
+            document.getElementById('categoryFilter').addEventListener('change', onCategoryFilterChange);
+            document.getElementById('clearFilterBtn').addEventListener('click', clearCategoryFilter);
             document.getElementById('previewBtn').addEventListener('click', previewList);
             document.getElementById('sendBtn').addEventListener('click', sendToWhatsApp);
             document.getElementById('closePreview').addEventListener('click', closePreview);
@@ -627,6 +646,26 @@
             renderItems(filtered);
         }
 
+        function onCategoryFilterChange() {
+            const clearBtn = document.getElementById('clearFilterBtn');
+            const selectedValue = document.getElementById('categoryFilter').value;
+            
+            // Show/hide clear button
+            if (selectedValue) {
+                clearBtn.classList.add('active');
+            } else {
+                clearBtn.classList.remove('active');
+            }
+            
+            filterItems();
+        }
+
+        function clearCategoryFilter() {
+            document.getElementById('categoryFilter').value = '';
+            document.getElementById('clearFilterBtn').classList.remove('active');
+            filterItems();
+        }
+
         function renderItems(items) {
             const container = document.getElementById('itemsContainer');
             const noResultsMessage = document.getElementById('noResultsMessage');
@@ -648,7 +687,6 @@
                 const actualIndex = allItems.indexOf(item);
                 const isSelected = selectedItems.has(actualIndex);
                 const quantity = isSelected ? selectedItems.get(actualIndex).quantity : 1;
-                const icon = categoryIconMap[item.Category] || '';
                 
                 return `
                 <div class="item ${isSelected ? 'selected' : ''}" data-index="${actualIndex}">
@@ -657,9 +695,6 @@
                            onclick="event.stopPropagation()">
                     <div class="item-info" onclick="toggleItem(${actualIndex})">
                         <div class="item-name">${item.Item || 'Unnamed Item'}</div>
-                        <div class="item-category">
-                            <span class="category-badge">${icon} ${item.Category || 'Other'}</span>
-                        </div>
                     </div>
                     <div class="quantity-controls">
                         <button class="quantity-btn" onclick="changeQuantity(${actualIndex}, -1); event.stopPropagation();" 
