@@ -47,12 +47,19 @@
             padding: 30px;
         }
 
-        .search-box {
+        .search-filter-box {
             margin-bottom: 20px;
-            position: relative;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
         }
 
-        .search-box input {
+        .search-box {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .search-box input, .category-filter select {
             width: 100%;
             padding: 15px;
             font-size: 1rem;
@@ -62,8 +69,17 @@
             transition: border-color 0.3s;
         }
 
-        .search-box input:focus {
+        .search-box input:focus, .category-filter select:focus {
             border-color: #667eea;
+        }
+
+        .category-filter {
+            min-width: 180px;
+        }
+
+        .category-filter select {
+            background: white;
+            cursor: pointer;
         }
 
         .no-results-message {
@@ -123,10 +139,9 @@
         .item.selected {
             background: #e7f3ff;
             border-left: 4px solid #667eea;
-            padding-bottom: 50px; /* Extra space for quantity controls on mobile */
+            padding-bottom: 50px;
         }
 
-        /* Mobile optimization */
         @media (max-width: 600px) {
             .item.selected {
                 flex-wrap: wrap;
@@ -142,6 +157,14 @@
                 padding: 8px;
                 border-radius: 8px;
                 box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
+            }
+
+            .search-filter-box {
+                flex-direction: column;
+            }
+
+            .category-filter {
+                min-width: 100%;
             }
         }
 
@@ -174,6 +197,9 @@
             padding: 3px 10px;
             border-radius: 12px;
             font-size: 0.75rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
         }
 
         .quantity-controls {
@@ -335,7 +361,7 @@
             color: #333;
         }
 
-        .form-group input {
+        .form-group input, .form-group select {
             width: 100%;
             padding: 12px;
             border: 2px solid #e0e0e0;
@@ -343,9 +369,14 @@
             font-size: 1rem;
         }
 
-        .form-group input:focus {
+        .form-group input:focus, .form-group select:focus {
             outline: none;
             border-color: #667eea;
+        }
+
+        .form-group select {
+            background: white;
+            cursor: pointer;
         }
 
         .loading {
@@ -413,8 +444,15 @@
         </div>
         
         <div class="content">
-            <div class="search-box">
-                <input type="text" id="searchInput" placeholder="🔍 Search items...">
+            <div class="search-filter-box">
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="🔍 Search items...">
+                </div>
+                <div class="category-filter">
+                    <select id="categoryFilter">
+                        <option value="">All Categories</option>
+                    </select>
+                </div>
             </div>
 
             <div class="no-results-message" id="noResultsMessage">
@@ -448,7 +486,6 @@
         </div>
     </div>
 
-    <!-- Preview Modal -->
     <div class="preview-modal" id="previewModal">
         <div class="modal-content">
             <div class="modal-header">
@@ -459,7 +496,6 @@
         </div>
     </div>
 
-    <!-- Add Item Modal -->
     <div class="add-item-modal" id="addItemModal">
         <div class="modal-content">
             <div class="modal-header">
@@ -469,15 +505,13 @@
             <form id="addItemForm">
                 <div class="form-group">
                     <label for="newItemName">Item Name *</label>
-                    <input type="text" id="newItemName" required placeholder="e.g., Milk, Bread, Apples">
+                    <input type="text" id="newItemName" required placeholder="e.g., Pienas, Duona, Obuoliai">
                 </div>
                 <div class="form-group">
                     <label for="newItemCategory">Category *</label>
-                    <input type="text" id="newItemCategory" required placeholder="e.g., Dairy, Bakery, Produce">
-                </div>
-                <div class="form-group">
-                    <label for="newItemAisle">Aisle Order (optional)</label>
-                    <input type="number" id="newItemAisle" placeholder="e.g., 1, 2, 3..." min="1">
+                    <select id="newItemCategory" required>
+                        <option value="">Select category...</option>
+                    </select>
                 </div>
                 <div class="button-group">
                     <button type="button" class="btn-preview" onclick="closeAddItemModal()">Cancel</button>
@@ -489,28 +523,74 @@
 
     <script>
         let allItems = [];
-        let selectedItems = new Map(); // Store items with their quantities
+        let allCategories = [];
+        let selectedItems = new Map();
+        let categoryIconMap = {};
 
-        // Load items on page load
         document.addEventListener('DOMContentLoaded', () => {
+            loadCategories();
             loadItems();
             setupEventListeners();
         });
 
         function setupEventListeners() {
             document.getElementById('searchInput').addEventListener('input', filterItems);
+            document.getElementById('categoryFilter').addEventListener('change', filterItems);
             document.getElementById('previewBtn').addEventListener('click', previewList);
             document.getElementById('sendBtn').addEventListener('click', sendToWhatsApp);
             document.getElementById('closePreview').addEventListener('click', closePreview);
             document.getElementById('closeAddItem').addEventListener('click', closeAddItemModal);
             document.getElementById('addItemForm').addEventListener('submit', addNewItem);
             
-            // Close modals on outside click
             document.getElementById('previewModal').addEventListener('click', (e) => {
                 if (e.target.id === 'previewModal') closePreview();
             });
             document.getElementById('addItemModal').addEventListener('click', (e) => {
                 if (e.target.id === 'addItemModal') closeAddItemModal();
+            });
+        }
+
+        async function loadCategories() {
+            try {
+                const response = await fetch('/api/categories');
+                const data = await response.json();
+                
+                if (data.success) {
+                    allCategories = data.categories;
+                    populateCategoryFilters();
+                    buildCategoryIconMap();
+                }
+            } catch (error) {
+                console.error('Failed to load categories:', error);
+            }
+        }
+
+        function buildCategoryIconMap() {
+            categoryIconMap = {};
+            allCategories.forEach(cat => {
+                categoryIconMap[cat.Category] = cat.Icon || '';
+            });
+        }
+
+        function populateCategoryFilters() {
+            const filterSelect = document.getElementById('categoryFilter');
+            const addItemSelect = document.getElementById('newItemCategory');
+            
+            filterSelect.innerHTML = '<option value="">All Categories</option>';
+            addItemSelect.innerHTML = '<option value="">Select category...</option>';
+            
+            allCategories.forEach(cat => {
+                const icon = cat.Icon || '';
+                const filterOption = document.createElement('option');
+                filterOption.value = cat.Category;
+                filterOption.textContent = `${icon} ${cat.Category}`.trim();
+                filterSelect.appendChild(filterOption);
+                
+                const addOption = document.createElement('option');
+                addOption.value = cat.Category;
+                addOption.dataset.aisleOrder = cat.Aisle_Order;
+                addOption.textContent = `${icon} ${cat.Category}`.trim();
+                addItemSelect.appendChild(addOption);
             });
         }
 
@@ -522,7 +602,7 @@
                 
                 if (data.success) {
                     allItems = data.items;
-                    renderItems(allItems);
+                    filterItems();
                 } else {
                     showStatus('Error loading items: ' + data.error, 'error');
                 }
@@ -531,6 +611,20 @@
             } finally {
                 document.getElementById('loading').classList.remove('active');
             }
+        }
+
+        function filterItems() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const selectedCategory = document.getElementById('categoryFilter').value;
+            
+            let filtered = allItems.filter(item => {
+                const matchesSearch = (item.Item || '').toLowerCase().includes(searchTerm) ||
+                                     (item.Category || '').toLowerCase().includes(searchTerm);
+                const matchesCategory = !selectedCategory || item.Category === selectedCategory;
+                return matchesSearch && matchesCategory;
+            });
+            
+            renderItems(filtered);
         }
 
         function renderItems(items) {
@@ -542,32 +636,36 @@
                 const searchTerm = document.getElementById('searchInput').value;
                 if (searchTerm.trim().length > 0) {
                     noResultsMessage.classList.add('active');
+                } else {
+                    noResultsMessage.classList.remove('active');
                 }
                 return;
             }
 
             noResultsMessage.classList.remove('active');
             
-            container.innerHTML = items.map((item, index) => {
-                const isSelected = selectedItems.has(index);
-                const quantity = isSelected ? selectedItems.get(index).quantity : 1;
+            container.innerHTML = items.map((item, originalIndex) => {
+                const actualIndex = allItems.indexOf(item);
+                const isSelected = selectedItems.has(actualIndex);
+                const quantity = isSelected ? selectedItems.get(actualIndex).quantity : 1;
+                const icon = categoryIconMap[item.Category] || '';
                 
                 return `
-                <div class="item ${isSelected ? 'selected' : ''}" data-index="${index}">
+                <div class="item ${isSelected ? 'selected' : ''}" data-index="${actualIndex}">
                     <input type="checkbox" ${isSelected ? 'checked' : ''} 
-                           onchange="toggleItem(${index})" 
+                           onchange="toggleItem(${actualIndex})" 
                            onclick="event.stopPropagation()">
-                    <div class="item-info" onclick="toggleItem(${index})">
+                    <div class="item-info" onclick="toggleItem(${actualIndex})">
                         <div class="item-name">${item.Item || 'Unnamed Item'}</div>
                         <div class="item-category">
-                            <span class="category-badge">${item.Category || 'Other'}</span>
+                            <span class="category-badge">${icon} ${item.Category || 'Other'}</span>
                         </div>
                     </div>
                     <div class="quantity-controls">
-                        <button class="quantity-btn" onclick="changeQuantity(${index}, -1); event.stopPropagation();" 
+                        <button class="quantity-btn" onclick="changeQuantity(${actualIndex}, -1); event.stopPropagation();" 
                                 ${quantity <= 1 ? 'disabled' : ''}>−</button>
                         <span class="quantity-display">${quantity}</span>
-                        <button class="quantity-btn" onclick="changeQuantity(${index}, 1); event.stopPropagation();">+</button>
+                        <button class="quantity-btn" onclick="changeQuantity(${actualIndex}, 1); event.stopPropagation();">+</button>
                     </div>
                 </div>
             `}).join('');
@@ -584,7 +682,7 @@
                     quantity: 1
                 });
             }
-            renderItems(allItems);
+            filterItems();
             updateButtons();
         }
 
@@ -594,17 +692,8 @@
                 const newQuantity = Math.max(1, item.quantity + delta);
                 item.quantity = newQuantity;
                 selectedItems.set(index, item);
-                renderItems(allItems);
+                filterItems();
             }
-        }
-
-        function filterItems() {
-            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-            const filtered = allItems.filter(item => 
-                (item.Item || '').toLowerCase().includes(searchTerm) ||
-                (item.Category || '').toLowerCase().includes(searchTerm)
-            );
-            renderItems(filtered);
         }
 
         function updateSelectedCount() {
@@ -649,8 +738,9 @@
             
             items.forEach(item => {
                 const category = item.Category || 'Other';
+                const icon = categoryIconMap[category] || '📍';
                 if (category !== currentCategory) {
-                    message += `\n📍 ${category}\n`;
+                    message += `\n${icon} ${category}\n`;
                     currentCategory = category;
                 }
                 const itemName = item.Item || 'Unknown';
@@ -691,9 +781,8 @@
                 
                 if (data.success) {
                     showStatus('✅ Shopping list sent to WhatsApp successfully!', 'success');
-                    // Clear selection after successful send
                     selectedItems.clear();
-                    renderItems(allItems);
+                    filterItems();
                     updateButtons();
                 } else {
                     showStatus('❌ Error: ' + data.error, 'error');
@@ -721,11 +810,11 @@
             e.preventDefault();
             
             const itemName = document.getElementById('newItemName').value.trim();
-            const category = document.getElementById('newItemCategory').value.trim();
-            const aisleOrder = document.getElementById('newItemAisle').value || 999;
+            const categorySelect = document.getElementById('newItemCategory');
+            const category = categorySelect.value;
             
             if (!itemName || !category) {
-                showStatus('❌ Please fill in item name and category', 'error');
+                showStatus('❌ Please fill in item name and select category', 'error');
                 return;
             }
 
@@ -737,8 +826,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         item_name: itemName,
-                        category: category,
-                        aisle_order: parseInt(aisleOrder)
+                        category: category
                     })
                 });
                 
@@ -747,10 +835,9 @@
                 if (data.success) {
                     showStatus('✅ Item added successfully!', 'success');
                     closeAddItemModal();
-                    // Reload items from Google Sheets
                     await loadItems();
-                    // Clear search to show all items
                     document.getElementById('searchInput').value = '';
+                    document.getElementById('categoryFilter').value = '';
                 } else {
                     showStatus('❌ Error: ' + data.error, 'error');
                 }

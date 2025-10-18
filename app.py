@@ -14,41 +14,78 @@ GOOGLE_SHEETS_CREDS_FILE = os.getenv('GOOGLE_SHEETS_CREDS_FILE', 'credentials.js
 SPREADSHEET_NAME = os.getenv('SPREADSHEET_NAME', 'Shopping Items')
 TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID')
 TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN')
-TWILIO_WHATSAPP_FROM = os.getenv('TWILIO_WHATSAPP_FROM')  # Format: whatsapp:+14155238886
-WHATSAPP_TO = os.getenv('WHATSAPP_TO')  # Format: whatsapp:+1234567890
+TWILIO_WHATSAPP_FROM = os.getenv('TWILIO_WHATSAPP_FROM')
+WHATSAPP_TO = os.getenv('WHATSAPP_TO')
 
 def get_google_sheet():
-    """Connect to Google Sheets and return the worksheet"""
+    """Connect to Google Sheets and return the workbook"""
     try:
         scope = ['https://spreadsheets.google.com/feeds',
                  'https://www.googleapis.com/auth/drive']
         creds = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_SHEETS_CREDS_FILE, scope)
         client = gspread.authorize(creds)
-        sheet = client.open(SPREADSHEET_NAME).sheet1
-        return sheet
+        workbook = client.open(SPREADSHEET_NAME)
+        return workbook
     except Exception as e:
         print(f"Error connecting to Google Sheets: {e}")
         return None
 
 def get_all_items():
-    """Fetch all items from Google Sheets"""
-    sheet = get_google_sheet()
-    if not sheet:
+    """Fetch all items from Items sheet and enrich with category data"""
+    workbook = get_google_sheet()
+    if not workbook:
         return []
     
-    # Get all records (assuming first row is header)
-    records = sheet.get_all_records()
-    return records
-
-def add_item_to_sheet(item_name, category, aisle_order=999):
-    """Add a new item to Google Sheets"""
     try:
-        sheet = get_google_sheet()
-        if not sheet:
+        items_sheet = workbook.worksheet('Items')
+        items = items_sheet.get_all_records()
+        
+        # Get categories to enrich items with aisle order
+        categories_sheet = workbook.worksheet('Categories')
+        categories = categories_sheet.get_all_records()
+        
+        # Create category lookup map
+        category_map = {cat['Category']: cat for cat in categories}
+        
+        # Enrich items with aisle order from categories
+        for item in items:
+            category_name = item.get('Category', '')
+            if category_name in category_map:
+                # Use aisle order from Categories sheet
+                item['Aisle_Order'] = category_map[category_name].get('Aisle_Order', 999)
+            elif 'Aisle_Order' not in item:
+                # Fallback if no category match and no aisle order in item
+                item['Aisle_Order'] = 999
+        
+        return items
+    except Exception as e:
+        print(f"Error fetching items: {e}")
+        return []
+
+def get_all_categories():
+    """Fetch all categories from Categories sheet"""
+    workbook = get_google_sheet()
+    if not workbook:
+        return []
+    
+    try:
+        sheet = workbook.worksheet('Categories')
+        records = sheet.get_all_records()
+        return records
+    except Exception as e:
+        print(f"Error fetching categories: {e}")
+        return []
+
+def add_item_to_sheet(item_name, category):
+    """Add a new item to Items sheet (only item name and category)"""
+    try:
+        workbook = get_google_sheet()
+        if not workbook:
             return False
         
-        # Append new row with item data
-        sheet.append_row([item_name, category, aisle_order])
+        sheet = workbook.worksheet('Items')
+        # Only append Item and Category (Aisle_Order comes from Categories sheet)
+        sheet.append_row([item_name, category])
         return True
     except Exception as e:
         print(f"Error adding item to Google Sheets: {e}")
@@ -72,6 +109,15 @@ def get_items():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/categories', methods=['GET'])
+def get_categories():
+    """API endpoint to get all categories"""
+    try:
+        categories = get_all_categories()
+        return jsonify({'success': True, 'categories': categories})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/items', methods=['POST'])
 def add_item():
     """API endpoint to add a new item to Google Sheets"""
@@ -79,12 +125,11 @@ def add_item():
         data = request.json
         item_name = data.get('item_name', '').strip()
         category = data.get('category', '').strip()
-        aisle_order = data.get('aisle_order', 999)
         
         if not item_name or not category:
             return jsonify({'success': False, 'error': 'Item name and category are required'}), 400
         
-        success = add_item_to_sheet(item_name, category, aisle_order)
+        success = add_item_to_sheet(item_name, category)
         
         if success:
             return jsonify({
@@ -92,8 +137,7 @@ def add_item():
                 'message': 'Item added successfully!',
                 'item': {
                     'Item': item_name,
-                    'Category': category,
-                    'Aisle_Order': aisle_order
+                    'Category': category
                 }
             })
         else:
@@ -112,10 +156,8 @@ def send_whatsapp():
         if not selected_items:
             return jsonify({'success': False, 'error': 'No items selected'}), 400
         
-        # Sort items by aisle order
         sorted_items = sort_items_by_aisle(selected_items)
         
-        # Format message
         message = "🛒 *Shopping List*\n\n"
         current_category = None
         
@@ -135,7 +177,6 @@ def send_whatsapp():
         
         message += "\n✅ Happy shopping!"
         
-        # Send via Twilio
         if not all([TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM, WHATSAPP_TO]):
             return jsonify({'success': False, 'error': 'Twilio credentials not configured'}), 500
         
@@ -165,7 +206,6 @@ def preview_list():
         if not selected_items:
             return jsonify({'success': False, 'error': 'No items selected'}), 400
         
-        # Sort items by aisle order
         sorted_items = sort_items_by_aisle(selected_items)
         
         return jsonify({'success': True, 'items': sorted_items})
