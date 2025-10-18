@@ -40,6 +40,20 @@ def get_all_items():
     records = sheet.get_all_records()
     return records
 
+def add_item_to_sheet(item_name, category, aisle_order=999):
+    """Add a new item to Google Sheets"""
+    try:
+        sheet = get_google_sheet()
+        if not sheet:
+            return False
+        
+        # Append new row with item data
+        sheet.append_row([item_name, category, aisle_order])
+        return True
+    except Exception as e:
+        print(f"Error adding item to Google Sheets: {e}")
+        return False
+
 def sort_items_by_aisle(items):
     """Sort items by aisle order"""
     return sorted(items, key=lambda x: x.get('Aisle_Order', 999))
@@ -55,6 +69,36 @@ def get_items():
     try:
         items = get_all_items()
         return jsonify({'success': True, 'items': items})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/items', methods=['POST'])
+def add_item():
+    """API endpoint to add a new item to Google Sheets"""
+    try:
+        data = request.json
+        item_name = data.get('item_name', '').strip()
+        category = data.get('category', '').strip()
+        aisle_order = data.get('aisle_order', 999)
+        
+        if not item_name or not category:
+            return jsonify({'success': False, 'error': 'Item name and category are required'}), 400
+        
+        success = add_item_to_sheet(item_name, category, aisle_order)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'Item added successfully!',
+                'item': {
+                    'Item': item_name,
+                    'Category': category,
+                    'Aisle_Order': aisle_order
+                }
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Failed to add item'}), 500
+    
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -80,7 +124,14 @@ def send_whatsapp():
             if category != current_category:
                 message += f"\n📍 *{category}*\n"
                 current_category = category
-            message += f"  • {item.get('Item', 'Unknown')}\n"
+            
+            item_name = item.get('Item', 'Unknown')
+            quantity = item.get('quantity', 1)
+            
+            if quantity > 1:
+                message += f"  • {item_name} × {quantity}\n"
+            else:
+                message += f"  • {item_name}\n"
         
         message += "\n✅ Happy shopping!"
         
