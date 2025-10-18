@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shopping List Builder</title>
+    <title>Patino administravimo įrankis</title>
     <style>
         * {
             margin: 0;
@@ -456,8 +456,8 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🛒 Shopping List Builder</h1>
-            <p>Select items and send to WhatsApp</p>
+            <h1>🛒 Patino administravimo įrankis</h1>
+            <p>Nusiųskite pirkinių sąrašą patinui į WhatsApp</p>
         </div>
         
         <div class="content">
@@ -507,7 +507,7 @@
     <div class="preview-modal" id="previewModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Shopping List Preview</h2>
+                <h2>Pirkinių sąrašo peržiūra</h2>
                 <button class="close-btn" id="closePreview">&times;</button>
             </div>
             <div class="preview-list" id="previewList"></div>
@@ -768,7 +768,7 @@
         }
 
         function displayPreview(items) {
-            let message = "🛒 Shopping List\n\n";
+            let message = "🛒 Pirkinių sąrašas\n\n";
             let currentCategory = null;
             
             items.forEach(item => {
@@ -798,7 +798,7 @@
         }
 
         async function sendToWhatsApp() {
-            if (!confirm('Send this shopping list to WhatsApp?')) {
+            if (!confirm('Siųsti pirkinių sąrašą į WhatsApp?')) {
                 return;
             }
 
@@ -815,7 +815,7 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    showStatus('✅ Shopping list sent to WhatsApp successfully!', 'success');
+                    showStatus('✅ Sąrašas išsiųstas. Patinas klauso ir vykdo', 'success');
                     selectedItems.clear();
                     filterItems();
                     updateButtons();
