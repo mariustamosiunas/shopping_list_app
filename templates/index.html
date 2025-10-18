@@ -113,6 +113,7 @@
             border-radius: 8px;
             transition: all 0.2s;
             gap: 10px;
+            position: relative;
         }
 
         .item:hover {
@@ -122,6 +123,26 @@
         .item.selected {
             background: #e7f3ff;
             border-left: 4px solid #667eea;
+            padding-bottom: 50px; /* Extra space for quantity controls on mobile */
+        }
+
+        /* Mobile optimization */
+        @media (max-width: 600px) {
+            .item.selected {
+                flex-wrap: wrap;
+            }
+            
+            .quantity-controls {
+                position: absolute;
+                bottom: 8px;
+                right: 12px;
+                left: 12px;
+                justify-content: flex-end;
+                background: white;
+                padding: 8px;
+                border-radius: 8px;
+                box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
+            }
         }
 
         .item input[type="checkbox"] {
