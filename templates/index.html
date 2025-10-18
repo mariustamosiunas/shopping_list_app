@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shopping List Builder</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .search-box {
+            margin-bottom: 20px;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 15px;
+            font-size: 1rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .search-box input:focus {
+            border-color: #667eea;
+        }
+
+        .items-container {
+            max-height: 400px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 15px;
+        }
+
+        .item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            margin-bottom: 8px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .item:hover {
+            background: #e9ecef;
+            transform: translateX(5px);
+        }
+
+        .item.selected {
+            background: #e7f3ff;
+            border-left: 4px solid #667eea;
+        }
+
+        .item input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin-right: 15px;
+            cursor: pointer;
+        }
+
+        .item-info {
+            flex: 1;
+        }
+
+        .item-name {
+            font-weight: 600;
+            font-size: 1rem;
+            color: #333;
+        }
+
+        .item-category {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 3px;
+        }
+
+        .category-badge {
+            background: #667eea;
+            color: white;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+        }
+
+        .no-items {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 15px;
+            font-size: 1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-preview {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-preview:hover:not(:disabled) {
+            background: #5a6268;
+            transform: translateY(-2px);
+        }
+
+        .btn-send {
+            background: #25d366;
+            color: white;
+        }
+
+        .btn-send:hover:not(:disabled) {
+            background: #20ba5a;
+            transform: translateY(-2px);
+        }
+
+        .preview-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .preview-modal.active {
+            display: flex;
+        }
+
+        .preview-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+            width: 90%;
+        }
+
+        .preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .preview-header h2 {
+            color: #333;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #999;
+            padding: 0;
+            width: auto;
+        }
+
+        .preview-list {
+            font-family: monospace;
+            white-space: pre-wrap;
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            line-height: 1.6;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .status-message {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .status-message.active {
+            display: block;
+        }
+
+        .status-message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status-message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .selected-count {
+            text-align: center;
+            margin: 15px 0;
+            font-size: 1rem;
+            color: #667eea;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛒 Shopping List Builder</h1>
+            <p>Select items and send to WhatsApp</p>
+        </div>
+        
+        <div class="content">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="🔍 Search items...">
+            </div>
+
+            <div class="selected-count" id="selectedCount">
+                No items selected
+            </div>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Loading items...</p>
+            </div>
+
+            <div class="status-message" id="statusMessage"></div>
+
+            <div class="items-container" id="itemsContainer">
+                <div class="no-items">Loading items from Google Sheets...</div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn-preview" id="previewBtn" disabled>
+                    👁️ Preview List
+                </button>
+                <button class="btn-send" id="sendBtn" disabled>
+                    📱 Send to WhatsApp
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="preview-modal" id="previewModal">
+        <div class="preview-content">
+            <div class="preview-header">
+                <h2>Shopping List Preview</h2>
+                <button class="close-btn" id="closePreview">&times;</button>
+            </div>
+            <div class="preview-list" id="previewList"></div>
+        </div>
+    </div>
+
+    <script>
+        let allItems = [];
+        let selectedItems = new Set();
+
+        // Load items on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadItems();
+            setupEventListeners();
+        });
+
+        function setupEventListeners() {
+            document.getElementById('searchInput').addEventListener('input', filterItems);
+            document.getElementById('previewBtn').addEventListener('click', previewList);
+            document.getElementById('sendBtn').addEventListener('click', sendToWhatsApp);
+            document.getElementById('closePreview').addEventListener('click', closePreview);
+            
+            // Close modal on outside click
+            document.getElementById('previewModal').addEventListener('click', (e) => {
+                if (e.target.id === 'previewModal') {
+                    closePreview();
+                }
+            });
+        }
+
+        async function loadItems() {
+            try {
+                document.getElementById('loading').classList.add('active');
+                const response = await fetch('/api/items');
+                const data = await response.json();
+                
+                if (data.success) {
+                    allItems = data.items;
+                    renderItems(allItems);
+                } else {
+                    showStatus('Error loading items: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showStatus('Failed to load items: ' + error.message, 'error');
+            } finally {
+                document.getElementById('loading').classList.remove('active');
+            }
+        }
+
+        function renderItems(items) {
+            const container = document.getElementById('itemsContainer');
+            
+            if (items.length === 0) {
+                container.innerHTML = '<div class="no-items">No items found</div>';
+                return;
+            }
+
+            container.innerHTML = items.map((item, index) => `
+                <div class="item ${selectedItems.has(index) ? 'selected' : ''}" onclick="toggleItem(${index})">
+                    <input type="checkbox" ${selectedItems.has(index) ? 'checked' : ''} onchange="event.stopPropagation(); toggleItem(${index})">
+                    <div class="item-info">
+                        <div class="item-name">${item.Item || 'Unnamed Item'}</div>
+                        <div class="item-category">
+                            <span class="category-badge">${item.Category || 'Other'}</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            updateSelectedCount();
+        }
+
+        function toggleItem(index) {
+            if (selectedItems.has(index)) {
+                selectedItems.delete(index);
+            } else {
+                selectedItems.add(index);
+            }
+            renderItems(allItems);
+            updateButtons();
+        }
+
+        function filterItems() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = allItems.filter(item => 
+                (item.Item || '').toLowerCase().includes(searchTerm) ||
+                (item.Category || '').toLowerCase().includes(searchTerm)
+            );
+            
+            // Keep selected items in the filtered list
+            const filteredWithSelection = filtered.map((item, idx) => {
+                const originalIndex = allItems.indexOf(item);
+                return { ...item, originalIndex };
+            });
+            
+            renderFilteredItems(filteredWithSelection);
+        }
+
+        function renderFilteredItems(items) {
+            const container = document.getElementById('itemsContainer');
+            
+            if (items.length === 0) {
+                container.innerHTML = '<div class="no-items">No items match your search</div>';
+                return;
+            }
+
+            container.innerHTML = items.map((item) => {
+                const originalIndex = item.originalIndex;
+                return `
+                    <div class="item ${selectedItems.has(originalIndex) ? 'selected' : ''}" onclick="toggleItem(${originalIndex})">
+                        <input type="checkbox" ${selectedItems.has(originalIndex) ? 'checked' : ''} onchange="event.stopPropagation(); toggleItem(${originalIndex})">
+                        <div class="item-info">
+                            <div class="item-name">${item.Item || 'Unnamed Item'}</div>
+                            <div class="item-category">
+                                <span class="category-badge">${item.Category || 'Other'}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateSelectedCount() {
+            const count = selectedItems.size;
+            const countEl = document.getElementById('selectedCount');
+            countEl.textContent = count === 0 ? 'No items selected' : 
+                                  count === 1 ? '1 item selected' : 
+                                  `${count} items selected`;
+        }
+
+        function updateButtons() {
+            const hasSelection = selectedItems.size > 0;
+            document.getElementById('previewBtn').disabled = !hasSelection;
+            document.getElementById('sendBtn').disabled = !hasSelection;
+        }
+
+        async function previewList() {
+            try {
+                const items = Array.from(selectedItems).map(idx => allItems[idx]);
+                
+                const response = await fetch('/api/preview', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayPreview(data.items);
+                } else {
+                    showStatus('Error generating preview: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showStatus('Failed to generate preview: ' + error.message, 'error');
+            }
+        }
+
+        function displayPreview(items) {
+            let message = "🛒 Shopping List\n\n";
+            let currentCategory = null;
+            
+            items.forEach(item => {
+                const category = item.Category || 'Other';
+                if (category !== currentCategory) {
+                    message += `\n📍 ${category}\n`;
+                    currentCategory = category;
+                }
+                message += `  • ${item.Item || 'Unknown'}\n`;
+            });
+            
+            message += "\n✅ Happy shopping!";
+            
+            document.getElementById('previewList').textContent = message;
+            document.getElementById('previewModal').classList.add('active');
+        }
+
+        function closePreview() {
+            document.getElementById('previewModal').classList.remove('active');
+        }
+
+        async function sendToWhatsApp() {
+            if (!confirm('Send this shopping list to WhatsApp?')) {
+                return;
+            }
+
+            try {
+                document.getElementById('loading').classList.add('active');
+                const items = Array.from(selectedItems).map(idx => allItems[idx]);
+                
+                const response = await fetch('/api/send-whatsapp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showStatus('✅ Shopping list sent to WhatsApp successfully!', 'success');
+                    // Clear selection after successful send
+                    selectedItems.clear();
+                    renderItems(allItems);
+                    updateButtons();
+                } else {
+                    showStatus('❌ Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showStatus('❌ Failed to send: ' + error.message, 'error');
+            } finally {
+                document.getElementById('loading').classList.remove('active');
+            }
+        }
+
+        function showStatus(message, type) {
+            const statusEl = document.getElementById('statusMessage');
+            statusEl.textContent = message;
+            statusEl.className = `status-message ${type} active`;
+            
+            setTimeout(() => {
+                statusEl.classList.remove('active');
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
