@@ -1047,32 +1047,32 @@
                     // Weight controls - 0.1 kg increments
                     controls = `
                         <div class="weight-controls">
-                            <button class="weight-btn" onclick="changeWeight(${itemId}, -0.1); event.stopPropagation();">−</button>
+                            <button class="weight-btn" onclick="changeWeight('${itemId}', -0.1); event.stopPropagation();">−</button>
                             <input type="number" class="weight-input" value="${displayValue}" step="0.1" min="0.1" 
-                                   onchange="setWeight(${itemId}, this.value); event.stopPropagation();"
+                                   onchange="setWeight('${itemId}', this.value); event.stopPropagation();"
                                    onclick="event.stopPropagation();">
                             <span class="weight-unit">kg</span>
-                            <button class="weight-btn" onclick="changeWeight(${itemId}, 0.1); event.stopPropagation();">+</button>
+                            <button class="weight-btn" onclick="changeWeight('${itemId}', 0.1); event.stopPropagation();">+</button>
                         </div>
                     `;
                 } else {
                     // Quantity controls
                     controls = `
                         <div class="quantity-controls">
-                            <button class="quantity-btn" onclick="changeQuantity(${itemId}, -1); event.stopPropagation();" 
+                            <button class="quantity-btn" onclick="changeQuantity('${itemId}', -1); event.stopPropagation();" 
                                     ${displayValue <= 1 ? 'disabled' : ''}>−</button>
                             <span class="quantity-display">${displayValue}</span>
-                            <button class="quantity-btn" onclick="changeQuantity(${itemId}, 1); event.stopPropagation();">+</button>
+                            <button class="quantity-btn" onclick="changeQuantity('${itemId}', 1); event.stopPropagation();">+</button>
                         </div>
                     `;
                 }
                 
                 return `
-                <div class="item ${isSelected ? 'selected' : ''}" data-index="${itemId}">
+                <div class="item ${isSelected ? 'selected' : ''}" data-item-id="${itemId}">
                     <input type="checkbox" ${isSelected ? 'checked' : ''} 
-                           onchange="toggleItem(${itemId})" 
+                           onchange="toggleItem('${itemId}')" 
                            onclick="event.stopPropagation()">
-                    <div class="item-info" onclick="toggleItem(${itemId})">
+                    <div class="item-info" onclick="toggleItem('${itemId}')">
                         <div class="item-name">${item.Item || 'Unnamed Item'}${unitBadge}</div>
                     </div>
                     ${controls}
@@ -1083,18 +1083,26 @@
         }
 
         function toggleItem(itemId) {
+            console.log('toggleItem called with itemId:', itemId);
             const item = allItems.find(i => i.Item_ID === itemId);
-            if (!item) return;
+            console.log('Found item:', item);
+            
+            if (!item) {
+                console.error('Item not found for itemId:', itemId);
+                return;
+            }
             
             const isWeight = (item.Unit_Type || 'quantity') === 'weight';
             
             if (selectedItems.has(itemId)) {
                 selectedItems.delete(itemId);
+                console.log('Deselected item:', itemId);
             } else {
                 selectedItems.set(itemId, {
                     ...item,
                     quantity: isWeight ? 1.0 : 1  // Default: 1.0kg for weight, 1 for quantity
                 });
+                console.log('Selected item:', itemId, 'selectedItems.size:', selectedItems.size);
             }
             filterItems();
             updateButtons();
@@ -1140,8 +1148,21 @@
 
         function updateButtons() {
             const hasSelection = selectedItems.size > 0;
+            console.log('updateButtons - selectedItems.size:', selectedItems.size, 'hasSelection:', hasSelection);
             document.getElementById('previewBtn').disabled = !hasSelection;
             document.getElementById('sendBtn').disabled = !hasSelection;
+            
+            // Update selection count display
+            const countDisplay = document.getElementById('selectedCount');
+            if (countDisplay) {
+                if (hasSelection) {
+                    const totalQty = Array.from(selectedItems.values())
+                        .reduce((sum, item) => sum + (item.quantity || 1), 0);
+                    countDisplay.textContent = `${selectedItems.size} item${selectedItems.size > 1 ? 's' : ''} selected`;
+                } else {
+                    countDisplay.textContent = 'No items selected';
+                }
+            }
         }
 
         async function previewList() {
