@@ -931,25 +931,48 @@
             // Clear current selection
             selectedItems.clear();
 
+            let matchedCount = 0;
+            let missingItems = [];
+
             // Find matching items and select them
             record.items.forEach(histItem => {
-                const matchingItem = allItems.find(item => 
-                    item.Item_ID === histItem.item_id || 
-                    item.Item.toLowerCase() === histItem.name.toLowerCase()
-                );
+                const matchingItem = allItems.find(item => {
+                    // First try to match by Item_ID if both exist and not empty
+                    if (histItem.item_id && histItem.item_id.trim() && 
+                        item.Item_ID && item.Item_ID.trim() && 
+                        histItem.item_id === item.Item_ID) {
+                        return true;
+                    }
+                    // Fall back to matching by name (case-insensitive)
+                    const histName = (histItem.name || '').toLowerCase().trim();
+                    const itemName = (item.Item || '').toLowerCase().trim();
+                    return histName && itemName && histName === itemName;
+                });
 
                 if (matchingItem) {
-                    const itemIndex = allItems.indexOf(matchingItem);
-                    selectedItems.set(itemIndex, {
+                    // Use Item_ID as key!
+                    selectedItems.set(matchingItem.Item_ID, {
                         ...matchingItem,
-                        quantity: histItem.quantity
+                        quantity: histItem.quantity || 1
                     });
+                    matchedCount++;
+                } else {
+                    missingItems.push(histItem.name);
                 }
             });
 
             filterItems();
             updateButtons();
-            showStatus(`✅ Loaded shopping list from ${new Date(record.Date).toLocaleDateString('lt-LT')}`, 'success');
+            
+            const date = new Date(record.Date).toLocaleDateString('lt-LT');
+            if (missingItems.length > 0) {
+                showStatus(
+                    `⚠️ Loaded ${matchedCount} of ${record.items.length} items from ${date}. Missing: ${missingItems.join(', ')}`, 
+                    'error'
+                );
+            } else {
+                showStatus(`✅ Loaded ${matchedCount} items from ${date}`, 'success');
+            }
         }
 
         function filterItems() {
@@ -1002,10 +1025,10 @@
 
             noResultsMessage.classList.remove('active');
             
-            container.innerHTML = items.map((item, originalIndex) => {
-                const actualIndex = allItems.indexOf(item);
-                const isSelected = selectedItems.has(actualIndex);
-                const quantity = isSelected ? selectedItems.get(actualIndex).quantity : 1;
+            container.innerHTML = items.map((item) => {
+                const itemId = item.Item_ID;
+                const isSelected = selectedItems.has(itemId);
+                const quantity = isSelected ? selectedItems.get(itemId).quantity : 1;
                 const unitType = item.Unit_Type || 'quantity';
                 const isWeight = unitType === 'weight';
                 
@@ -1024,32 +1047,32 @@
                     // Weight controls - 0.1 kg increments
                     controls = `
                         <div class="weight-controls">
-                            <button class="weight-btn" onclick="changeWeight(${actualIndex}, -0.1); event.stopPropagation();">−</button>
+                            <button class="weight-btn" onclick="changeWeight(${itemId}, -0.1); event.stopPropagation();">−</button>
                             <input type="number" class="weight-input" value="${displayValue}" step="0.1" min="0.1" 
-                                   onchange="setWeight(${actualIndex}, this.value); event.stopPropagation();"
+                                   onchange="setWeight(${itemId}, this.value); event.stopPropagation();"
                                    onclick="event.stopPropagation();">
                             <span class="weight-unit">kg</span>
-                            <button class="weight-btn" onclick="changeWeight(${actualIndex}, 0.1); event.stopPropagation();">+</button>
+                            <button class="weight-btn" onclick="changeWeight(${itemId}, 0.1); event.stopPropagation();">+</button>
                         </div>
                     `;
                 } else {
                     // Quantity controls
                     controls = `
                         <div class="quantity-controls">
-                            <button class="quantity-btn" onclick="changeQuantity(${actualIndex}, -1); event.stopPropagation();" 
+                            <button class="quantity-btn" onclick="changeQuantity(${itemId}, -1); event.stopPropagation();" 
                                     ${displayValue <= 1 ? 'disabled' : ''}>−</button>
                             <span class="quantity-display">${displayValue}</span>
-                            <button class="quantity-btn" onclick="changeQuantity(${actualIndex}, 1); event.stopPropagation();">+</button>
+                            <button class="quantity-btn" onclick="changeQuantity(${itemId}, 1); event.stopPropagation();">+</button>
                         </div>
                     `;
                 }
                 
                 return `
-                <div class="item ${isSelected ? 'selected' : ''}" data-index="${actualIndex}">
+                <div class="item ${isSelected ? 'selected' : ''}" data-index="${itemId}">
                     <input type="checkbox" ${isSelected ? 'checked' : ''} 
-                           onchange="toggleItem(${actualIndex})" 
+                           onchange="toggleItem(${itemId})" 
                            onclick="event.stopPropagation()">
-                    <div class="item-info" onclick="toggleItem(${actualIndex})">
+                    <div class="item-info" onclick="toggleItem(${itemId})">
                         <div class="item-name">${item.Item || 'Unnamed Item'}${unitBadge}</div>
                     </div>
                     ${controls}
@@ -1059,14 +1082,16 @@
             updateSelectedCount();
         }
 
-        function toggleItem(index) {
-            const item = allItems[index];
+        function toggleItem(itemId) {
+            const item = allItems.find(i => i.Item_ID === itemId);
+            if (!item) return;
+            
             const isWeight = (item.Unit_Type || 'quantity') === 'weight';
             
-            if (selectedItems.has(index)) {
-                selectedItems.delete(index);
+            if (selectedItems.has(itemId)) {
+                selectedItems.delete(itemId);
             } else {
-                selectedItems.set(index, {
+                selectedItems.set(itemId, {
                     ...item,
                     quantity: isWeight ? 1.0 : 1  // Default: 1.0kg for weight, 1 for quantity
                 });
@@ -1075,32 +1100,32 @@
             updateButtons();
         }
 
-        function changeQuantity(index, delta) {
-            if (selectedItems.has(index)) {
-                const item = selectedItems.get(index);
+        function changeQuantity(itemId, delta) {
+            if (selectedItems.has(itemId)) {
+                const item = selectedItems.get(itemId);
                 const newQuantity = Math.max(1, item.quantity + delta);
                 item.quantity = newQuantity;
-                selectedItems.set(index, item);
+                selectedItems.set(itemId, item);
                 filterItems();
             }
         }
 
-        function changeWeight(index, delta) {
-            if (selectedItems.has(index)) {
-                const item = selectedItems.get(index);
+        function changeWeight(itemId, delta) {
+            if (selectedItems.has(itemId)) {
+                const item = selectedItems.get(itemId);
                 const newWeight = Math.max(0.1, Math.round((item.quantity + delta) * 10) / 10);
                 item.quantity = newWeight;
-                selectedItems.set(index, item);
+                selectedItems.set(itemId, item);
                 filterItems();
             }
         }
 
-        function setWeight(index, value) {
-            if (selectedItems.has(index)) {
-                const item = selectedItems.get(index);
+        function setWeight(itemId, value) {
+            if (selectedItems.has(itemId)) {
+                const item = selectedItems.get(itemId);
                 const weight = Math.max(0.1, parseFloat(value) || 1.0);
                 item.quantity = Math.round(weight * 10) / 10;
-                selectedItems.set(index, item);
+                selectedItems.set(itemId, item);
                 filterItems();
             }
         }
