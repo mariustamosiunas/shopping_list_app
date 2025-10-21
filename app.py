@@ -531,23 +531,72 @@ def send_whatsapp():
             to=WHATSAPP_TO
         )
         
-        # Save or update history
+        # Save or update history and handle purchase counts
         if is_update:
+            # Get the previous list to calculate difference
+            workbook = get_google_sheet()
+            if workbook:
+                try:
+                    sheet = workbook.worksheet('Shopping_History')
+                    all_records = sheet.get_all_records()
+                    
+                    if all_records:
+                        last_record = all_records[-1]
+                        old_items_json = last_record.get('Items_JSON', '[]')
+                        
+                        try:
+                            old_items = json.loads(old_items_json)
+                            
+                            # Calculate NEW items and INCREASED quantities
+                            old_item_map = {item['item_id']: item['quantity'] for item in old_items if item.get('item_id')}
+                            
+                            item_count_diff = {}
+                            for item in selected_items:
+                                item_id = item.get('Item_ID', '')
+                                new_quantity = item.get('quantity', 1)
+                                
+                                if item_id:
+                                    old_quantity = old_item_map.get(item_id, 0)
+                                    
+                                    if old_quantity == 0:
+                                        # New item added to list
+                                        item_count_diff[item_id] = new_quantity
+                                    elif new_quantity > old_quantity:
+                                        # Quantity increased
+                                        item_count_diff[item_id] = new_quantity - old_quantity
+                            
+                            # Update purchase counts only for NEW or INCREASED items
+                            if item_count_diff:
+                                update_purchase_counts(item_count_diff)
+                        except:
+                            # JSON parse error - treat as new list
+                            pass
+                except:
+                    pass
+            
+            # Update history
             updated = update_last_shopping_list(selected_items)
             if not updated:
+                # Update failed (list too old) - save as new list
                 save_shopping_history(selected_items)
+                # Count all items as it's a new shopping trip
+                item_counts = {}
+                for item in selected_items:
+                    item_id = item.get('Item_ID', '')
+                    quantity = item.get('quantity', 1)
+                    if item_id:
+                        item_counts[item_id] = quantity
+                update_purchase_counts(item_counts)
         else:
+            # New list - save history and update all purchase counts
             save_shopping_history(selected_items)
-        
-        # Update purchase counts
-        item_counts = {}
-        for item in selected_items:
-            item_id = item.get('Item_ID', '')
-            quantity = item.get('quantity', 1)
-            if item_id:
-                item_counts[item_id] = quantity
-        
-        update_purchase_counts(item_counts)
+            item_counts = {}
+            for item in selected_items:
+                item_id = item.get('Item_ID', '')
+                quantity = item.get('quantity', 1)
+                if item_id:
+                    item_counts[item_id] = quantity
+            update_purchase_counts(item_counts)
         
         return jsonify({
             'success': True,
